@@ -38,6 +38,8 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.ui.graphics.Color
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -295,9 +297,14 @@ fun BusStopSearchScreen(
                                     .padding(8.dp)
                                     .verticalScroll(rememberScrollState()) // 스크롤 가능하도록 설정
                             ) {
+                                var alarmBusArrivals by remember { mutableStateOf(loadAlarms(context)) }
+
                                 busArrivalInfo.forEach { arrival ->
                                     val arrivalMinutes = (arrival.arrTime ?: 0) / 60
                                     val remainingStations = arrival.arrPrevStationCnt ?: 0
+
+                                    // 알람이 설정된 상태인지 확인
+                                    val isAlarmSet = alarmBusArrivals.any { it.routeNo == arrival.routeNo }
 
                                     Card(
                                         modifier = Modifier
@@ -309,17 +316,40 @@ fun BusStopSearchScreen(
                                         Column(
                                             modifier = Modifier.padding(16.dp)
                                         ) {
-                                            Text(
-                                                text = "버스 번호: ${arrival.routeNo}",
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = "예상 도착 시간: ${arrivalMinutes}분 (${remainingStations}개 정류장)",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
+                                            Row(
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text = "버스 번호: ${arrival.routeNo}",
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = "예상 도착 시간: ${arrivalMinutes}분 (${remainingStations}개 정류장)",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+
+                                                // 알람 버튼을 누르면 알람 목록에 추가/제거하고 상태를 업데이트
+                                                IconButton(onClick = {
+                                                    toggleAlarm(arrival, alarmBusArrivals.toMutableList(), context).also {
+                                                        // 상태 업데이트 후 UI 즉시 반영
+                                                        alarmBusArrivals = loadAlarms(context)
+                                                    }
+                                                }) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Alarm,
+                                                        contentDescription = "알람 설정",
+                                                        tint = if (isAlarmSet) Color.Red else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -390,6 +420,32 @@ fun loadFavorites(context: Context): List<BusStopItem> {
     val type = object : TypeToken<List<BusStopItem>>() {}.type
     return Gson().fromJson(json, type)
 }
+
+fun toggleAlarm(busArrival: BusArrivalItem, alarmBusArrivals: MutableList<BusArrivalItem>, context: Context) {
+    // 알람이 이미 등록된 경우 제거, 그렇지 않으면 추가
+    if (alarmBusArrivals.any { it.routeNo == busArrival.routeNo }) {
+        alarmBusArrivals.removeAll { it.routeNo == busArrival.routeNo }
+    } else {
+        alarmBusArrivals.add(busArrival)
+    }
+    saveAlarms(context, alarmBusArrivals)
+}
+
+fun saveAlarms(context: Context, alarms: List<BusArrivalItem>) {
+    val sharedPreferences = context.getSharedPreferences("BusAppPrefs", Context.MODE_PRIVATE)
+    val editor = sharedPreferences.edit()
+    val json = Gson().toJson(alarms)
+    editor.putString("alarmBusArrivals", json)
+    editor.apply()
+}
+
+fun loadAlarms(context: Context): List<BusArrivalItem> {
+    val sharedPreferences = context.getSharedPreferences("BusAppPrefs", Context.MODE_PRIVATE)
+    val json = sharedPreferences.getString("alarmBusArrivals", null) ?: return emptyList()
+    val type = object : TypeToken<List<BusArrivalItem>>() {}.type
+    return Gson().fromJson(json, type)
+}
+
 
 suspend fun fetchBusArrivalInfo(busStop: BusStopItem, apiKey: String, coroutineScope: CoroutineScope, onResult: (List<BusArrivalItem>) -> Unit) {
     try {
