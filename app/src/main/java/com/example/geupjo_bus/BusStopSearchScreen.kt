@@ -304,7 +304,7 @@ fun BusStopSearchScreen(
                                     val remainingStations = arrival.arrPrevStationCnt ?: 0
 
                                     // 알람이 설정된 상태인지 확인
-                                    val isAlarmSet = alarmBusArrivals.any { it.routeNo == arrival.routeNo }
+                                    val isAlarmSet = alarmBusArrivals.any { it.nodeId == arrival.nodeId && it.routeNo == arrival.routeNo && it.routeId == arrival.routeId}
 
                                     Card(
                                         modifier = Modifier
@@ -423,8 +423,8 @@ fun loadFavorites(context: Context): List<BusStopItem> {
 
 fun toggleAlarm(busArrival: BusArrivalItem, alarmBusArrivals: MutableList<BusArrivalItem>, context: Context) {
     // 알람이 이미 등록된 경우 제거, 그렇지 않으면 추가
-    if (alarmBusArrivals.any { it.routeNo == busArrival.routeNo }) {
-        alarmBusArrivals.removeAll { it.routeNo == busArrival.routeNo }
+    if (alarmBusArrivals.any { it.nodeId == busArrival.nodeId && it.routeNo == busArrival.routeNo && it.routeId == busArrival.routeId}) {
+        alarmBusArrivals.removeAll { it.nodeId == busArrival.nodeId && it.routeNo == busArrival.routeNo && it.routeId == busArrival.routeId }
     } else {
         alarmBusArrivals.add(busArrival)
     }
