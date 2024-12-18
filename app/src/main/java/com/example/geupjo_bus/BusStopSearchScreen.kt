@@ -421,31 +421,6 @@ fun loadFavorites(context: Context): List<BusStopItem> {
     return Gson().fromJson(json, type)
 }
 
-fun toggleAlarm(busArrival: BusArrivalItem, alarmBusArrivals: MutableList<BusArrivalItem>, context: Context) {
-    // 알람이 이미 등록된 경우 제거, 그렇지 않으면 추가
-    if (alarmBusArrivals.any { it.nodeId == busArrival.nodeId && it.routeNo == busArrival.routeNo && it.routeId == busArrival.routeId}) {
-        alarmBusArrivals.removeAll { it.nodeId == busArrival.nodeId && it.routeNo == busArrival.routeNo && it.routeId == busArrival.routeId }
-    } else {
-        alarmBusArrivals.add(busArrival)
-    }
-    saveAlarms(context, alarmBusArrivals)
-}
-
-fun saveAlarms(context: Context, alarms: List<BusArrivalItem>) {
-    val sharedPreferences = context.getSharedPreferences("BusAppPrefs", Context.MODE_PRIVATE)
-    val editor = sharedPreferences.edit()
-    val json = Gson().toJson(alarms)
-    editor.putString("alarmBusArrivals", json)
-    editor.apply()
-}
-
-fun loadAlarms(context: Context): List<BusArrivalItem> {
-    val sharedPreferences = context.getSharedPreferences("BusAppPrefs", Context.MODE_PRIVATE)
-    val json = sharedPreferences.getString("alarmBusArrivals", null) ?: return emptyList()
-    val type = object : TypeToken<List<BusArrivalItem>>() {}.type
-    return Gson().fromJson(json, type)
-}
-
 
 suspend fun fetchBusArrivalInfo(busStop: BusStopItem, apiKey: String, coroutineScope: CoroutineScope, onResult: (List<BusArrivalItem>) -> Unit) {
     try {

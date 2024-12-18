@@ -80,10 +80,16 @@ dependencies {
     // Google Maps Utilities (Optional: Clustering, Heatmap, etc.)
     implementation ("com.google.maps.android:android-maps-utils:2.3.0")
 
+    implementation ("androidx.work:work-runtime:2.9.0")
+    // Kotlin을 사용하는 경우:
+    implementation ("androidx.work:work-runtime-ktx:2.9.0")
+
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.coordinatorlayout)
     implementation(libs.material)
-
+    implementation ("androidx.work:work-runtime-ktx:2.8.0")
+    implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.0")
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
