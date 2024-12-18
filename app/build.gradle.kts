@@ -83,6 +83,8 @@ dependencies {
     implementation ("androidx.work:work-runtime:2.9.0")
     // Kotlin을 사용하는 경우:
     implementation ("androidx.work:work-runtime-ktx:2.9.0")
+    implementation ("com.google.accompanist:accompanist-swiperefresh:0.31.1-alpha")
+
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.coordinatorlayout)
@@ -90,6 +92,9 @@ dependencies {
     implementation ("androidx.work:work-runtime-ktx:2.8.0")
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.0")
     implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+    implementation ("com.google.android.material:material:1.9.0")
+
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

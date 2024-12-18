@@ -648,7 +648,7 @@ fun DrawerMenuItem(label: String, onClick: () -> Unit) {
 fun ManbokScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
 
-    // SharedPreferences에서 걸음 수 불러오기
+    // SharedPreferences에서 초기 걸음 수 불러오기
     var stepCount by remember { mutableStateOf(loadStepCount(context)) }
 
     val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -665,8 +665,8 @@ fun ManbokScreen(onBackClick: () -> Unit) {
             if (event != null && event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
                 // 걸음 감지 시 카운트 증가
                 if (event.values.isNotEmpty()) {
-                    stepCount += 1
-                    saveStepCount(context, stepCount) // SharedPreferences에 걸음 수 저장
+                    saveStepCount(context, loadStepCount(context) + 1) // SharedPreferences에 걸음 수 저장
+                    stepCount = loadStepCount(context) // UI를 최신 데이터로 갱신
                 }
             }
         }
@@ -735,18 +735,18 @@ fun ManbokScreen(onBackClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(16.dp)) // 여백 추가
             Text(
-                text = "이동 거리: ${round(stepCount*0.6)} m",
+                text = "이동 거리: ${round(stepCount * 0.6)} m",
                 style = TextStyle(fontSize = 20.sp, color = Color.Black)
             )
             Text(
-                text = "소모 칼로리: ${round(stepCount*0.03)} kcal",
+                text = "소모 칼로리: ${round(stepCount * 0.03)} kcal",
                 style = TextStyle(fontSize = 20.sp, color = Color.Black)
             )
             // 초기화 버튼 추가
             Button(
                 onClick = {
-                    stepCount = 0  // 걸음 수 초기화
-                    saveStepCount(context, stepCount)  // 초기화된 걸음 수를 SharedPreferences에 저장
+                    saveStepCount(context, 0) // 걸음 수 초기화 후 SharedPreferences에 저장
+                    stepCount = loadStepCount(context) // 초기화된 값으로 갱신
                 },
                 modifier = Modifier.padding(top = 16.dp) // 버튼 위에 여백 추가
             ) {
