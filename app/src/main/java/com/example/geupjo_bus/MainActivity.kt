@@ -260,59 +260,64 @@ fun BusAppContent(
     // 지도를 화면 전체에 표시
     Box(modifier = Modifier.fillMaxSize()) {
         if (latitude != null && longitude != null) {
-            if (busStops.isNotEmpty()) {
-                busStops.forEach { busStop ->
-                    GoogleMapView(
-                        latitude = latitude!!,
-                        longitude = longitude!!,
-                        busStops = busStops, // 주변 정류장 데이터 전달
-                        onClick = { busStop ->
-                            selectedBusStop = busStop
-                            coroutineScope.launch {
-                                isLoading = true // 로딩 시작
-                                try {
-                                    val apiKey = URLDecoder.decode(
-                                        "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D",
-                                        "UTF-8"
-                                    )
-                                    val response = BusApiClient.apiService.getBusArrivalInfo(
-                                        apiKey = apiKey,
-                                        cityCode = 38030, // 진주시 코드
-                                        nodeId = busStop.nodeId!! // 선택된 정류장의 nodeId 사용
-                                    )
-                                    if (response.isSuccessful) {
-                                        // 도착 정보를 arrTime(예상 도착 시간) 기준으로 정렬
-                                        busArrivalInfo = response.body()?.body?.items?.itemList
-                                            ?.sortedBy {
-                                                it.arrTime ?: Int.MAX_VALUE
-                                            } // null은 가장 뒤로 이동
-                                            ?: emptyList()
+            GoogleMapView(
+                latitude = latitude!!,
+                longitude = longitude!!,
+                busStops = busStops, // 주변 정류장 데이터 전달
+                onClick = { busStop ->
+                    selectedBusStop = busStop
+                    coroutineScope.launch {
+                        isLoading = true // 로딩 시작
+                        try {
+                            val apiKey = URLDecoder.decode(
+                                "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D",
+                                "UTF-8"
+                            )
+                            val response = BusApiClient.apiService.getBusArrivalInfo(
+                                apiKey = apiKey,
+                                cityCode = 38030, // 진주시 코드
+                                nodeId = busStop.nodeId!! // 선택된 정류장의 nodeId 사용
+                            )
+                            if (response.isSuccessful) {
+                                // 도착 정보를 arrTime(예상 도착 시간) 기준으로 정렬
+                                busArrivalInfo = response.body()?.body?.items?.itemList
+                                    ?.sortedBy {
+                                        it.arrTime ?: Int.MAX_VALUE
+                                    } // null은 가장 뒤로 이동
+                                    ?: emptyList()
 
-                                        if (busArrivalInfo.isEmpty()) {
-                                            Log.d("Bus Info", "도착 버스 정보가 없습니다.")
-                                        }
-                                    } else {
-                                        Log.e(
-                                            "API Error",
-                                            "도착 정보 호출 실패: ${response.code()}, ${response.message()}"
-                                        )
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("API Error", "도착 정보 로드 실패: ${e.message}")
-                                } finally {
-                                    isLoading = false // 로딩 종료
-                                    showDialog = true // 다이얼로그 표시
+                                if (busArrivalInfo.isEmpty()) {
+                                    Log.d("Bus Info", "도착 버스 정보가 없습니다.")
                                 }
+                            } else {
+                                Log.e(
+                                    "API Error",
+                                    "도착 정보 호출 실패: ${response.code()}, ${response.message()}"
+                                )
                             }
+                        } catch (e: Exception) {
+                            Log.e("API Error", "도착 정보 로드 실패: ${e.message}")
+                        } finally {
+                            isLoading = false // 로딩 종료
+                            showDialog = true // 다이얼로그 표시
                         }
+                    }
+                }
+            )
+
+            if (busStops.isEmpty()) {
+                // 정류장이 없을 때 메시지 표시
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "주변에 정류장이 없습니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            } else {
-                Text("주변 정류장 정보를 불러오는 중입니다...")
             }
-
-
-
         } else {
             // 위치 정보 로드 중일 때
             Box(
