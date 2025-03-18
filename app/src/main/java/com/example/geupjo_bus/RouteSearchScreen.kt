@@ -5,6 +5,7 @@ import android.content.Context
 import android.location.Geocoder
 import android.location.Location
 import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -39,11 +41,11 @@ import kotlin.coroutines.suspendCoroutine
 fun RouteSearchScreen(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {}
-
 ) {
     var departure by remember { mutableStateOf(TextFieldValue("")) }
     var destination by remember { mutableStateOf(TextFieldValue("")) }
     var routeResults by remember { mutableStateOf(listOf<String>()) }
+    var travelTime by remember { mutableStateOf("") }
     var polylinePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var currentLocation by remember { mutableStateOf<Location?>(null) }
@@ -129,8 +131,9 @@ fun RouteSearchScreen(
                 onDone = {
                     isSearching = true
                     coroutineScope.launch {
-                        val (results, polyline) = fetchDirections(departure.text, destination.text)
+                        val (results, polyline, duration) = fetchDirections(departure.text, destination.text)
                         routeResults = results
+                        travelTime = duration
                         updateMapWithDirections(
                             googleMap = googleMap,
                             polyline = polyline,
@@ -152,8 +155,9 @@ fun RouteSearchScreen(
             onClick = {
                 isSearching = true
                 coroutineScope.launch {
-                    val (results, polyline) = fetchDirections(departure.text, destination.text)
+                    val (results, polyline, duration) = fetchDirections(departure.text, destination.text)
                     routeResults = results
+                    travelTime = duration
                     updateMapWithDirections(
                         googleMap = googleMap,
                         polyline = polyline,
@@ -182,6 +186,10 @@ fun RouteSearchScreen(
         if (routeResults.isNotEmpty()) {
             Text(text = "검색 결과:", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
+            if (travelTime.isNotEmpty()) {
+                Text(text = "총 이동시간: $travelTime", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             for (result in routeResults) {
                 RouteSearchResultItem(route = result)
@@ -191,7 +199,7 @@ fun RouteSearchScreen(
             AndroidView(
                 factory = { mapView },
                 modifier = Modifier
-                    .fillMaxWidth() // 지도 너비를 화면 전체로 채움
+                    .fillMaxWidth()
                     .height(400.dp)
             ) { map ->
                 map.getMapAsync { gMap ->
@@ -259,7 +267,7 @@ fun updateMapWithDirections(
     }
 }
 
-suspend fun fetchDirections(departure: String, destination: String): Pair<List<String>, String?> {
+suspend fun fetchDirections(departure: String, destination: String): Triple<List<String>, String?, String> {
     return withContext(Dispatchers.IO) {
         try {
             val client = OkHttpClient()
@@ -271,6 +279,7 @@ suspend fun fetchDirections(departure: String, destination: String): Pair<List<S
 
             val routeList = mutableListOf<String>()
             var polyline: String? = null
+            var totalDuration = ""
 
             if (jsonData != null) {
                 val jsonObject = JSONObject(jsonData)
@@ -281,6 +290,9 @@ suspend fun fetchDirections(departure: String, destination: String): Pair<List<S
                     polyline = route.getJSONObject("overview_polyline").getString("points")
 
                     val legs = route.getJSONArray("legs")
+                    // 총 이동시간 추출 (예: "15분", "1시간 20분" 등)
+                    totalDuration = legs.getJSONObject(0).getJSONObject("duration").getString("text")
+
                     val steps = legs.getJSONObject(0).getJSONArray("steps")
 
                     for (i in 0 until steps.length()) {
@@ -302,10 +314,10 @@ suspend fun fetchDirections(departure: String, destination: String): Pair<List<S
                     }
                 }
             }
-            Pair(routeList, polyline)
+            Triple(routeList, polyline, totalDuration)
         } catch (e: Exception) {
             Log.e("Google Directions API", "Error fetching directions: ${e.message}")
-            Pair(emptyList(), null)
+            Triple(emptyList(), null, "")
         }
     }
 }
@@ -323,20 +335,20 @@ fun decodePolyline(encoded: String): List<LatLng> {
         var result = 0
         do {
             b = encoded[index++].code - 63
-            result = result or (b and 0x1f shl shift)
+            result = result or ((b and 0x1f) shl shift)
             shift += 5
         } while (b >= 0x20)
-        val dlat = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+        val dlat = if ((result and 1) != 0) (result shr 1).inv() else result shr 1
         lat += dlat
 
         shift = 0
         result = 0
         do {
             b = encoded[index++].code - 63
-            result = result or (b and 0x1f shl shift)
+            result = result or ((b and 0x1f) shl shift)
             shift += 5
         } while (b >= 0x20)
-        val dlng = if (result and 1 != 0) (result shr 1).inv() else result shr 1
+        val dlng = if ((result and 1) != 0) (result shr 1).inv() else result shr 1
         lng += dlng
 
         val p = LatLng(
