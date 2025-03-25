@@ -51,14 +51,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -85,7 +83,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -93,8 +93,9 @@ import androidx.work.WorkerParameters
 import com.example.geupjo_bus.api.BusApiClient
 import com.example.geupjo_bus.api.BusArrivalItem
 import com.example.geupjo_bus.api.BusStop
-import com.example.geupjo_bus.ui.rememberMapViewWithLifecycle
 import com.example.geupjo_bus.ui.theme.Geupjo_BusTheme
+import com.example.geupjo_bus.StepCountService
+import com.example.geupjo_bus.ui.rememberMapViewWithLifecycle
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -106,6 +107,8 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
@@ -113,9 +116,9 @@ import com.google.maps.android.compose.rememberMarkerState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.distinctUntilChanged
 import java.net.URLDecoder
 import java.util.concurrent.TimeUnit
 import kotlin.math.asin
@@ -124,9 +127,6 @@ import kotlin.math.pow
 import kotlin.math.round
 import kotlin.math.sin
 import kotlin.math.sqrt
-import androidx.work.*
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -876,6 +876,29 @@ fun AlarmScreen(onBackClick: () -> Unit, context: Context) {
     var alarmBusArrivals by remember { mutableStateOf(loadAlarms(context)) }
     var busArrivalInfo by remember { mutableStateOf<List<BusArrivalItem>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
+
+    val gyeongsangnamdoCityCodes = listOf(
+        38010, // 창원시
+        38020, // 마산시
+        38030, // 진주시
+        38040, // 통영시
+        38050, // 사천시
+        38060, // 김해시
+        38070, // 밀양시
+        38080, // 거제시
+        38090, // 양산시
+        38100, // 의령군
+        38110, // 함안군
+        38120, // 창녕군
+        38130, // 고성군
+        38140, // 남해군
+        38150, // 하동군
+        38160, // 산청군
+        38170, // 함양군
+        38180, // 거창군
+        38190  // 합천군
+    )
+
     LaunchedEffect(Unit) {
         while (true) {
             scheduleBusArrivalWork(context)
@@ -886,17 +909,18 @@ fun AlarmScreen(onBackClick: () -> Unit, context: Context) {
                             "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D",
                             "UTF-8"
                         )
-                        val response = BusApiClient.apiService.getBusArrivalInfo(
-                            apiKey = apiKey,
-                            cityCode = 38030,
-                            nodeId = arrival.nodeId!!
-                        )
-                        if (response.isSuccessful) {
-                            busArrivalInfo = response.body()?.body?.items?.itemList
-                                ?.sortedBy { it.arrTime ?: Int.MAX_VALUE }
-                                ?: emptyList()
-                        } else {
-                            Log.e("API Error", "도착 정보 호출 실패: ${response.code()}, ${response.message()}")
+                        gyeongsangnamdoCityCodes.forEach { cityCode ->
+                            val response = BusApiClient.apiService.getBusArrivalInfo(
+                                apiKey = apiKey,
+                                cityCode = cityCode,
+                                nodeId = arrival.nodeId!!
+                            )
+                            if (response.isSuccessful) {
+                                val result = response.body()?.body?.items?.itemList ?: emptyList()
+                                if (result.any { it.routeId == arrival.routeId && it.routeNo == arrival.routeNo }) {
+                                    busArrivalInfo = result.sortedBy { it.arrTime ?: Int.MAX_VALUE }
+                                }
+                            }
                         }
                     } catch (e: Exception) {
                         Log.e("API Error", "도착 정보 로드 실패: ${e.message}")
@@ -995,32 +1019,47 @@ class BusArrivalWork(context: Context, workerParams: WorkerParameters) : Worker(
             alarmBusArrivals.forEach { arrival ->
                 try {
                     val apiKey = URLDecoder.decode("cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D", "UTF-8")
-                    val response = withContext(Dispatchers.IO) {
-                        BusApiClient.apiService.getBusArrivalInfo(
-                            apiKey = apiKey,
-                            cityCode = 38030,
-                            nodeId = arrival.nodeId!!
-                        )
-                    }
-                    if (response.isSuccessful) {
-                        val busArrivalInfo = response.body()?.body?.items?.itemList
-                            ?.sortedBy { it.arrTime ?: Int.MAX_VALUE }
-                            ?: emptyList()
-                        busArrivalInfo.forEach { arrivals ->
-                            if (arrivals.nodeId == arrival.nodeId && arrivals.routeNo == arrival.routeNo && arrivals.routeId == arrival.routeId) {
-                                val remainingStations = arrivals.arrPrevStationCnt ?: 0
-                                if (remainingStations <= 5) {
-                                    showNotification(context, arrivals)
-                                    val updatedList = alarmBusArrivals.toMutableList().apply {
-                                        removeAll { it.nodeId == arrival.nodeId && it.routeNo == arrival.routeNo && it.routeId == arrival.routeId }
+                    val gyeongsangnamdoCityCodes = listOf(
+                        38010, 38020, 38030, 38040, 38050,
+                        38060, 38070, 38080, 38090, 38100,
+                        38110, 38120, 38130, 38140, 38150,
+                        38160, 38170, 38180, 38190
+                    )
+
+                    for (cityCode in gyeongsangnamdoCityCodes) {
+                        val response = withContext(Dispatchers.IO) {
+                            BusApiClient.apiService.getBusArrivalInfo(
+                                apiKey = apiKey,
+                                cityCode = cityCode,
+                                nodeId = arrival.nodeId!!
+                            )
+                        }
+
+                        if (response.isSuccessful) {
+                            val busArrivalInfo = response.body()?.body?.items?.itemList
+                                ?.sortedBy { it.arrTime ?: Int.MAX_VALUE } ?: emptyList()
+
+                            busArrivalInfo.forEach { arrivals ->
+                                if (arrivals.nodeId == arrival.nodeId &&
+                                    arrivals.routeNo == arrival.routeNo &&
+                                    arrivals.routeId == arrival.routeId) {
+
+                                    val remainingStations = arrivals.arrPrevStationCnt ?: 0
+
+                                    if (remainingStations <= 5) {
+                                        showNotification(context, arrivals)
+                                        val updatedList = alarmBusArrivals.toMutableList().apply {
+                                            removeAll { it.nodeId == arrival.nodeId && it.routeNo == arrival.routeNo && it.routeId == arrival.routeId }
+                                        }
+                                        saveAlarms(context, updatedList)
                                     }
-                                    saveAlarms(context, updatedList)
                                 }
                             }
+
+
                         }
-                    } else {
-                        Log.e("API Error", "Failed to fetch bus arrival info")
                     }
+
                 } catch (e: Exception) {
                     Log.e("Worker Error", "Error during bus arrival info processing: ${e.message}")
                 }
