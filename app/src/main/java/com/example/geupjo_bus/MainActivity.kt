@@ -43,8 +43,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -56,6 +57,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -77,6 +80,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,6 +99,7 @@ import com.example.geupjo_bus.api.BusArrivalItem
 import com.example.geupjo_bus.api.BusStop
 import com.example.geupjo_bus.ui.theme.Geupjo_BusTheme
 import com.example.geupjo_bus.StepCountService
+import com.example.geupjo_bus.api.BusRouteList
 import com.example.geupjo_bus.ui.rememberMapViewWithLifecycle
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -112,6 +117,7 @@ import com.google.gson.reflect.TypeToken
 import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberMarkerState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -135,101 +141,128 @@ class MainActivity : ComponentActivity() {
         setContent {
             Geupjo_BusTheme {
                 var drawerState by remember { mutableStateOf(false) }
-                var currentScreen by remember { mutableStateOf("home") } // 화면 전환 관리
+                var currentScreen by remember { mutableStateOf("home") }
                 val context = LocalContext.current
-                Box(Modifier.fillMaxSize()) {
+
+                Box(modifier = Modifier.fillMaxSize()) {
                     Scaffold(
                         topBar = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        brush = Brush.horizontalGradient(
-                                            colors = listOf(
-                                                MaterialTheme.colorScheme.primary,
-                                                MaterialTheme.colorScheme.secondary
-                                            )
-                                        )
-                                    )
-                            ) {
-                                TopAppBar(
-                                    title = {
-                                        Text(
-                                            text = "GN BUS",
-                                            style = MaterialTheme.typography.titleLarge.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onPrimary
-                                            )
-                                        )
-                                    },
-                                    actions = {
-                                        IconButton(onClick = { drawerState = true }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Menu,
-                                                contentDescription = "메뉴",
-                                                tint = MaterialTheme.colorScheme.onPrimary
-                                            )
-                                        }
-                                    },
-                                    colors = TopAppBarDefaults.topAppBarColors(
-                                        containerColor = Color.Transparent
-                                    )
-                                )
+                            GradientTopBar(
+                                title = "GN BUS",
+                                onMenuClick = { drawerState = true }
+                            )
+                        },
+                        bottomBar = {
+                            BottomNavigationBar(currentScreen) { selected ->
+                                currentScreen = selected
                             }
                         },
                         content = { innerPadding ->
-                            when (currentScreen) {
-                                "home" -> BusAppContent(
-                                    Modifier.padding(innerPadding),
-                                    onSearchClick = { currentScreen = "search" },
-                                    onRouteSearchClick = { currentScreen = "route" }
-                                )
-                                "search" -> BusStopSearchScreen(
-                                    modifier = Modifier.padding(innerPadding),
-                                    onBackClick = { currentScreen = "home" },
-                                    apiKey = "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D",
-                                    onBusStopClick = { busStopName ->
-                                        Log.d("MainActivity", "Selected bus stop: $busStopName")
-                                    }
-                                )
-                                "route" -> RouteSearchScreen(
-                                    modifier = Modifier.padding(innerPadding),
-                                    onBackClick = { currentScreen = "home" }
-                                )
-                                "manbok" -> ManbokScreen(
-                                    onBackClick = { currentScreen = "home" }
-                                )
-                                "alarm" -> AlarmScreen(
-                                    onBackClick = { currentScreen = "home" },
-                                    context = context
-                                )
+                            Box(modifier = Modifier.padding(innerPadding)) {
+                                when (currentScreen) {
+                                    "home" -> BusAppContent(
+                                        modifier = Modifier.fillMaxSize(),
+                                        onSearchClick = { currentScreen = "search" },
+                                        onRouteSearchClick = { currentScreen = "route" }
+                                    )
+                                    "search" -> BusStopSearchScreen(
+                                        modifier = Modifier.fillMaxSize(),
+                                        onBackClick = { currentScreen = "home" },
+                                        apiKey = "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D",
+                                        onBusStopClick = { Log.d("MainActivity", "Selected: $it") }
+                                    )
+                                    "route" -> RouteSearchScreen(
+                                        modifier = Modifier.fillMaxSize(),
+                                        onBackClick = { currentScreen = "home" }
+                                    )
+                                    "manbok" -> ManbokScreen(
+                                        onBackClick = { currentScreen = "home" }
+                                    )
+                                    "alarm" -> AlarmScreen(
+                                        onBackClick = { currentScreen = "home" },
+                                        context = context
+                                    )
+                                }
                             }
                         }
                     )
+
+                    // 드로어 메뉴 (오른쪽 슬라이드)
                     AnimatedVisibility(
                         visible = drawerState,
-                        enter = slideInHorizontally(
-                            initialOffsetX = { fullWidth -> fullWidth },
-                            animationSpec = tween(500)
-                        ),
-                        exit = slideOutHorizontally(
-                            targetOffsetX = { fullWidth -> fullWidth },
-                            animationSpec = tween(500)
-                        )
+                        enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)),
+                        exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300))
                     ) {
-                        DrawerContent(
-                            onDismiss = { drawerState = false },
-                            onMenuItemClick = { screen ->
-                                currentScreen = screen
-                                drawerState = false
-                            }
-                        )
                     }
                 }
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GradientTopBar(title: String, onMenuClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.horizontalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.secondary
+                    )
+                )
+            )
+    ) {
+        TopAppBar(
+            title = {
+                Text(
+                    title,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent
+            )
+        )
+    }
+}
+
+
+@Composable
+fun BottomNavigationBar(currentScreen: String, onTabSelected: (String) -> Unit) {
+    NavigationBar {
+        val items = listOf("home", "search", "route", "manbok", "alarm")
+        val icons = listOf(
+            Icons.Default.Home,
+            Icons.Default.Search,
+            Icons.Default.DirectionsBus,
+            Icons.Default.Favorite,
+            Icons.Default.Alarm
+        )
+        val labels = listOf("홈", "정류장", "경로", "만보기", "알람")
+
+        items.forEachIndexed { index, screen ->
+            NavigationBarItem(
+                selected = currentScreen == screen,
+                onClick = { onTabSelected(screen) },
+                icon = {
+                    Icon(imageVector = icons[index], contentDescription = labels[index])
+                },
+                label = {
+                    Text(labels[index], style = MaterialTheme.typography.labelMedium)
+                }
+            )
+        }
+    }
+}
+
 
 @Composable
 fun BusAppContent(
@@ -239,17 +272,15 @@ fun BusAppContent(
 ) {
     val context = LocalContext.current
 
-    // 현재 위치(디바이스 위치)와 마지막 재검색한 중심 좌표를 저장
     var busStops by remember { mutableStateOf<List<BusStop>>(emptyList()) }
+    var busStopList by remember { mutableStateOf<List<BusRouteList>>(emptyList()) }
     var latitude by remember { mutableStateOf<Double?>(null) }
     var longitude by remember { mutableStateOf<Double?>(null) }
     var searchedCenter by remember { mutableStateOf<LatLng?>(null) }
-    // 사용자가 지도 이동 시 업데이트되는 현재 지도 중심
     var mapCenter by remember { mutableStateOf<LatLng?>(null) }
-    // "현재위치" 버튼을 눌렀을 때 true로 설정하여 재중앙화(recenter)를 트리거
     var shouldRecenter by remember { mutableStateOf(false) }
 
-    val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     val locationPermissionState = rememberPermissionState(permission = Manifest.permission.ACCESS_FINE_LOCATION)
     var selectedBusStop by remember { mutableStateOf<BusStop?>(null) }
     var busArrivalInfo by remember { mutableStateOf<List<BusArrivalItem>>(emptyList()) }
@@ -257,32 +288,30 @@ fun BusAppContent(
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
 
-    // 현재 위치 가져오기 및 초기 검색 기준 설정
+    val gyeongsangnamdoCityCodes = listOf(
+        38010, 38020, 38030, 38040, 38050,
+        38060, 38070, 38080, 38090, 38100,
+        38110, 38120, 38130, 38140, 38150,
+        38160, 38170, 38180, 38190
+    )
+
     LaunchedEffect(Unit) {
         if (locationPermissionState.status.isGranted) {
             getCurrentLocation(context, fusedLocationClient) { lat, lng ->
                 latitude = lat
                 longitude = lng
-                val initCenter = LatLng(lat, lng)
-                searchedCenter = initCenter
-                mapCenter = initCenter
+                val center = LatLng(lat, lng)
+                searchedCenter = center
+                mapCenter = center
                 coroutineScope.launch {
                     try {
-                        val encodedKey = "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D"
-                        val apiKey = URLDecoder.decode(encodedKey, "UTF-8")
-                        val response = BusApiClient.apiService.getNearbyBusStops(
-                            apiKey = apiKey,
-                            latitude = lat,
-                            longitude = lng
-                        )
+                        val apiKey = URLDecoder.decode("cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D", "UTF-8")
+                        val response = BusApiClient.apiService.getNearbyBusStops(apiKey, lat, lng)
                         if (response.isSuccessful) {
-                            val responseBody = response.body()
-                            busStops = responseBody?.body?.items?.itemList?.take(10) ?: emptyList()
-                        } else {
-                            Log.e("API Error", "API 호출 실패: ${response.code()}, ${response.message()}")
+                            busStops = response.body()?.body?.items?.itemList?.take(10) ?: emptyList()
                         }
                     } catch (e: Exception) {
-                        Log.e("API Error", "정류장 목록 로드 실패: ${e.message}")
+                        Log.e("API Error", "위치 기반 정류장 조회 실패: ${e.message}")
                     }
                 }
             }
@@ -291,7 +320,6 @@ fun BusAppContent(
         }
     }
 
-    // recenter 버튼이 눌렸을 때 일정 시간 후 상태 리셋
     LaunchedEffect(shouldRecenter) {
         if (shouldRecenter) {
             delay(500L)
@@ -302,33 +330,27 @@ fun BusAppContent(
     Box(modifier = modifier.fillMaxSize()) {
         if (latitude != null && longitude != null) {
             GoogleMapView(
-                latitude = latitude!!,
-                longitude = longitude!!,
-                busStops = busStops,
+                latitude!!,
+                longitude!!,
+                busStops,
                 onClick = { busStop ->
                     selectedBusStop = busStop
                     coroutineScope.launch {
                         isLoading = true
                         try {
-                            val apiKey = URLDecoder.decode(
-                                "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D",
-                                "UTF-8"
-                            )
-                            val response = BusApiClient.apiService.getBusArrivalInfo(
-                                apiKey = apiKey,
-                                cityCode = 38030,
-                                nodeId = busStop.nodeId!!
-                            )
-                            if (response.isSuccessful) {
-                                busArrivalInfo = response.body()?.body?.items?.itemList
-                                    ?.sortedBy { it.arrTime ?: Int.MAX_VALUE }
-                                    ?: emptyList()
-                                if (busArrivalInfo.isEmpty()) {
-                                    Log.d("Bus Info", "도착 버스 정보가 없습니다.")
+                            val apiKey = URLDecoder.decode("cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D", "UTF-8")
+                            var result: List<BusArrivalItem> = emptyList()
+                            for (cityCode in gyeongsangnamdoCityCodes) {
+                                val res = BusApiClient.apiService.getBusArrivalInfo(apiKey, cityCode, busStop.nodeId!!)
+                                if (res.isSuccessful) {
+                                    val items = res.body()?.body?.items?.itemList.orEmpty()
+                                    if (items.isNotEmpty()) {
+                                        result = items.sortedBy { it.arrTime ?: Int.MAX_VALUE }
+                                        break
+                                    }
                                 }
-                            } else {
-                                Log.e("API Error", "도착 정보 호출 실패: ${response.code()}, ${response.message()}")
                             }
+                            busArrivalInfo = result
                         } catch (e: Exception) {
                             Log.e("API Error", "도착 정보 로드 실패: ${e.message}")
                         } finally {
@@ -337,14 +359,10 @@ fun BusAppContent(
                         }
                     }
                 },
-                onMapMoved = { newCenter ->
-                    // 지도 이동 시마다 현재 중심 업데이트
-                    mapCenter = newCenter
-                },
-                recenterTrigger = shouldRecenter // recenter 효과를 위해 전달
+                onMapMoved = { mapCenter = it },
+                recenterTrigger = shouldRecenter
             )
 
-            // 사용자가 검색 기준에서 200m 이상 벗어나면 재검색 버튼(우측 하단) 표시
             if (mapCenter != null && searchedCenter != null) {
                 val distance = getDistance(
                     searchedCenter!!.latitude,
@@ -353,32 +371,27 @@ fun BusAppContent(
                     mapCenter!!.longitude
                 )
                 if (distance > 200) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                         Button(
                             onClick = {
                                 coroutineScope.launch {
                                     try {
-                                        val encodedKey = "cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D"
-                                        val apiKey = URLDecoder.decode(encodedKey, "UTF-8")
-                                        // mapCenter 기준으로 API 호출
+                                        val apiKey = URLDecoder.decode("cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D", "UTF-8")
+
+                                        // 🔥 마커 초기화를 위한 리스트 초기화
+                                        busStops = emptyList()
+
                                         val response = BusApiClient.apiService.getNearbyBusStops(
-                                            apiKey = apiKey,
-                                            latitude = mapCenter!!.latitude,
-                                            longitude = mapCenter!!.longitude
+                                            apiKey,
+                                            mapCenter!!.latitude,
+                                            mapCenter!!.longitude
                                         )
                                         if (response.isSuccessful) {
-                                            val responseBody = response.body()
-                                            busStops = responseBody?.body?.items?.itemList?.take(10) ?: emptyList()
+                                            busStops = response.body()?.body?.items?.itemList?.take(10) ?: emptyList()
                                             searchedCenter = mapCenter
-                                        } else {
-                                            Log.e("API Error", "API 호출 실패: ${response.code()}, ${response.message()}")
                                         }
                                     } catch (e: Exception) {
-                                        Log.e("API Error", "정류장 목록 로드 실패: ${e.message}")
+                                        Log.e("API Error", "재검색 실패: ${e.message}")
                                     }
                                 }
                             },
@@ -390,17 +403,10 @@ fun BusAppContent(
                 }
             }
 
-            // "현재위치로 돌아가기" 버튼 (좌측 하단)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
+            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 Button(
                     onClick = {
-                        // 현재 위치(latitude, longitude)로 recenter 트리거
                         shouldRecenter = true
-                        // 선택한 검색 기준을 현재 위치로 갱신
                         searchedCenter = LatLng(latitude!!, longitude!!)
                     },
                     modifier = Modifier.align(Alignment.BottomStart)
@@ -410,147 +416,130 @@ fun BusAppContent(
             }
 
             if (busStops.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "주변에 정류장이 없습니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("주변에 정류장이 없습니다.", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("현재 위치를 확인 중입니다...", style = MaterialTheme.typography.bodyMedium)
             }
         }
 
+        // 도착 정보 AlertDialog
         if (showDialog && selectedBusStop != null) {
             AlertDialog(
                 onDismissRequest = { showDialog = false },
                 title = {
-                    Text(
-                        text = "버스 도착 정보: ${selectedBusStop?.nodeName}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Text("버스 도착 정보: ${selectedBusStop?.nodeName}", style = MaterialTheme.typography.titleMedium)
                 },
                 text = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                    ) {
+                    Column(Modifier.fillMaxSize().padding(16.dp)) {
                         val mapView = rememberMapViewWithLifecycle(context)
                         var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
+
                         AndroidView(
                             factory = { mapView },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                        ) { map ->
-                            map.getMapAsync { gMap ->
+                            modifier = Modifier.fillMaxWidth().height(200.dp)
+                        ) { view ->
+                            view.getMapAsync { gMap ->
                                 googleMap = gMap
-                                googleMap?.clear()
-                                val busStopLat = selectedBusStop?.latitude?.toString()?.toDoubleOrNull() ?: latitude ?: 0.0
-                                val busStopLong = selectedBusStop?.longitude?.toString()?.toDoubleOrNull() ?: longitude ?: 0.0
-                                val busStopLocation = LatLng(busStopLat, busStopLong)
-                                googleMap?.addMarker(
-                                    MarkerOptions()
-                                        .position(busStopLocation)
-                                        .title(selectedBusStop?.nodeName)
-                                )
-                                googleMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(busStopLocation, 17f))
+                                val lat = selectedBusStop?.latitude?: latitude!!
+                                val lng = selectedBusStop?.longitude?: longitude!!
+                                val loc = LatLng(lat, lng)
+                                gMap.clear()
+                                gMap.addMarker(MarkerOptions().position(loc).title(selectedBusStop?.nodeName))
+                                gMap.moveCamera(CameraUpdateFactory.newLatLngZoom(loc, 17f))
                             }
                         }
+
                         when {
-                            busArrivalInfo.isEmpty() && !isLoading -> {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp)
-                                ) {
-                                    Text(
-                                        text = "도착 버스 정보가 없습니다.",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
                             isLoading -> {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator()
+                                    Spacer(Modifier.height(8.dp))
                                     Text("버스 도착 정보를 불러오는 중입니다...")
                                 }
                             }
+                            busArrivalInfo.isEmpty() -> {
+                                Text("도착 버스 정보가 없습니다.")
+                            }
                             else -> {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(8.dp)
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    var alarmBusArrivals by remember { mutableStateOf(loadAlarms(context)) }
-                                    busArrivalInfo.forEach { arrival ->
-                                        val arrivalMinutes = (arrival.arrTime ?: 0) / 60
-                                        val remainingStations = arrival.arrPrevStationCnt ?: 0
-                                        val isAlarmSet = alarmBusArrivals.any {
-                                            it.nodeId == arrival.nodeId &&
-                                                    it.routeNo == arrival.routeNo &&
-                                                    it.routeId == arrival.routeId
-                                        }
-                                        Card(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp),
-                                            shape = MaterialTheme.shapes.medium,
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.padding(16.dp)
-                                            ) {
-                                                Row(
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Text(
-                                                            text = "버스 번호: ${arrival.routeNo}",
-                                                            style = MaterialTheme.typography.bodyLarge,
-                                                            color = MaterialTheme.colorScheme.primary
-                                                        )
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                        Text(
-                                                            text = "예상 도착 시간: ${arrivalMinutes}분 (${remainingStations}개 정류장)",
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = MaterialTheme.colorScheme.onSurface
-                                                        )
-                                                    }
-                                                    IconButton(onClick = {
-                                                        toggleAlarm(arrival, alarmBusArrivals.toMutableList(), context).also {
-                                                            alarmBusArrivals = loadAlarms(context)
+                                var alarmBusArrivals by remember { mutableStateOf(loadAlarms(context)) }
+
+                                busArrivalInfo.forEach { arrival ->
+                                    val arrivalMinutes = (arrival.arrTime ?: 0) / 60
+                                    val remainingStations = arrival.arrPrevStationCnt ?: 0
+                                    val isAlarmSet = alarmBusArrivals.any {
+                                        it.nodeId == arrival.nodeId && it.routeId == arrival.routeId
+                                    }
+                                    var showMapDialog by remember { mutableStateOf(false) }
+
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                try {
+                                                    val apiKey = URLDecoder.decode("cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D", "UTF-8")
+                                                    var found = false
+                                                    for (cityCode in gyeongsangnamdoCityCodes) {
+                                                        val response = arrival.routeId?.let {
+                                                            BusApiClient.apiService.getBusRouteInfo(apiKey, cityCode, it)
                                                         }
-                                                    }) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Alarm,
-                                                            contentDescription = "알람 설정",
-                                                            tint = if (isAlarmSet) Color.Red else MaterialTheme.colorScheme.onSurface
-                                                        )
+                                                        if (response != null && response.isSuccessful) {
+                                                            val items = response.body()?.body?.items?.itemList
+                                                            if (!items.isNullOrEmpty()) {
+                                                                busStopList = items
+                                                                searchedCenter = mapCenter
+                                                                showMapDialog = true
+                                                                found = true
+                                                                break
+                                                            }
+                                                        }
                                                     }
+                                                    if (!found) Log.e("API", "경로 정보 없음")
+                                                } catch (e: Exception) {
+                                                    Log.e("API", "경로 요청 실패: ${e.message}")
                                                 }
                                             }
                                         }
+                                    ) {
+                                        Column(Modifier.padding(16.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("버스 번호: ${arrival.routeNo}")
+                                                    Text("예상 도착: ${arrivalMinutes}분 (${remainingStations}개 정류장)")
+                                                }
+                                                IconButton(onClick = {
+                                                    toggleAlarm(arrival, alarmBusArrivals.toMutableList(), context)
+                                                    alarmBusArrivals = loadAlarms(context)
+                                                }) {
+                                                    Icon(Icons.Default.Alarm, contentDescription = null, tint = if (isAlarmSet) Color.Red else Color.Gray)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (showMapDialog) {
+                                        AlertDialog(
+                                            onDismissRequest = { showMapDialog = false },
+                                            title = { Text("버스 경로") },
+                                            text = {
+                                                GoogleMapRouteView(
+                                                    latitude = searchedCenter?.latitude ?: latitude!!,
+                                                    longitude = searchedCenter?.longitude ?: longitude!!,
+                                                    busRouteList = busStopList,
+                                                    onClick = {},
+                                                    onMapMoved = {},
+                                                    recenterTrigger = false
+                                                )
+                                            },
+                                            confirmButton = {
+                                                Button(onClick = { showMapDialog = false }) {
+                                                    Text("닫기")
+                                                }
+                                            }
+                                        )
                                     }
                                 }
                             }
@@ -559,7 +548,7 @@ fun BusAppContent(
                 },
                 confirmButton = {
                     TextButton(onClick = { showDialog = false }) {
-                        Text("확인", color = MaterialTheme.colorScheme.primary)
+                        Text("확인")
                     }
                 }
             )
@@ -567,6 +556,88 @@ fun BusAppContent(
     }
 }
 
+@Composable
+fun GoogleMapRouteView(
+    latitude: Double,
+    longitude: Double,
+    busRouteList: List<BusRouteList>,
+    onClick: (BusStop) -> Unit,
+    onMapMoved: (LatLng) -> Unit,
+    recenterTrigger: Boolean // recenter 여부 전달
+) {
+    val cameraPositionState = remember {
+        CameraPositionState(
+            position = CameraPosition.fromLatLngZoom(LatLng(latitude, longitude), 13f)
+        )
+    }
+
+    var zoomLevel by remember { mutableStateOf(17f) } // 줌 레벨 추적 상태
+
+    // 지도 이동 시 onMapMoved 호출
+    LaunchedEffect(cameraPositionState) {
+        snapshotFlow { cameraPositionState.position.zoom }
+            .distinctUntilChanged()
+            .collect { zoom ->
+                zoomLevel = zoom
+            }
+    }
+
+    // recenterTrigger가 true이면 현재 위치(latitude, longitude)로 카메라 이동
+    LaunchedEffect(recenterTrigger) {
+        if (recenterTrigger) {
+            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(latitude, longitude), 17f))
+        }
+    }
+
+    GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        onMapLoaded = {
+            Log.d("GoogleMap", "지도 로드 완료")
+        }
+    ) {
+        // 현재 위치 마커 표시 (줌 레벨에 따라 표시 여부 결정)
+        if (zoomLevel >= 15f) { // 줌 레벨이 15 이상일 때만 표시
+            Marker(
+                state = rememberMarkerState(position = LatLng(latitude, longitude)),
+                title = "현재 위치",
+                snippet = "여기가 현재 위치입니다."
+            )
+        }
+
+        // 버스 정류장 마커 표시 (줌 레벨에 따라 표시 여부 결정)
+        busRouteList.forEach { busRoute ->
+            val lat = busRoute.latitude
+            val lng = busRoute.longitude
+            if (lat != null && lng != null && zoomLevel >= 15f) { // 줌 레벨이 15 이상일 때만 표시
+                Marker(
+                    state = rememberMarkerState(position = LatLng(lat, lng)),
+                    title = busRoute.nodeName,
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                    onClick = {
+
+                        true
+                    }
+                )
+            }
+        }
+
+        // Polyline 예제: 버스 정류장들을 연결하는 선 그리기
+        val points = busRouteList.mapNotNull { busStop ->
+            if (busStop.latitude != null && busStop.longitude != null) {
+                LatLng(busStop.latitude!!, busStop.longitude!!)
+            } else null
+        }
+
+        if (points.size >= 2) {
+            Polyline(
+                points = points,
+                color = Color.Red,
+                width = 10f
+            )
+        }
+    }
+}
 @Composable
 fun GoogleMapView(
     latitude: Double,
@@ -705,67 +776,6 @@ fun getCurrentLocation(
     }
 }
 
-@Composable
-fun DrawerContent(onDismiss: () -> Unit, onMenuItemClick: (String) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(250.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "메뉴",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            IconButton(onClick = onDismiss) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "닫기",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 8.dp),
-            color = MaterialTheme.colorScheme.outline,
-            thickness = 1.dp
-        )
-        DrawerMenuItem(label = "홈", onClick = { onMenuItemClick("home") })
-        Spacer(modifier = Modifier.height(8.dp))
-        DrawerMenuItem(label = "정류장 검색", onClick = { onMenuItemClick("search") })
-        Spacer(modifier = Modifier.height(8.dp))
-        DrawerMenuItem(label = "경로 검색", onClick = { onMenuItemClick("route") })
-        Spacer(modifier = Modifier.height(8.dp))
-        DrawerMenuItem(label = "만보기", onClick = { onMenuItemClick("manbok") })
-        Spacer(modifier = Modifier.height(8.dp))
-        DrawerMenuItem(label = "알람", onClick = { onMenuItemClick("alarm") })
-    }
-}
-
-@Composable
-fun DrawerMenuItem(label: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp, horizontal = 12.dp)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f), shape = MaterialTheme.shapes.small),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
