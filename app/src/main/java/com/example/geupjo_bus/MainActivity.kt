@@ -53,6 +53,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,7 +78,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -237,6 +240,8 @@ fun GradientTopBar(title: String, onMenuClick: () -> Unit) {
 
 @Composable
 fun BottomNavigationBar(currentScreen: String, onTabSelected: (String) -> Unit) {
+    val haptic = LocalHapticFeedback.current
+
     NavigationBar {
         val items = listOf("home", "search", "route", "manbok", "alarm")
         val icons = listOf(
@@ -251,17 +256,27 @@ fun BottomNavigationBar(currentScreen: String, onTabSelected: (String) -> Unit) 
         items.forEachIndexed { index, screen ->
             NavigationBarItem(
                 selected = currentScreen == screen,
-                onClick = { onTabSelected(screen) },
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onTabSelected(screen)
+                },
                 icon = {
-                    Icon(imageVector = icons[index], contentDescription = labels[index])
+                    Icon(
+                        imageVector = icons[index],
+                        contentDescription = labels[index]
+                    )
                 },
                 label = {
-                    Text(labels[index], style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        text = labels[index],
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             )
         }
     }
 }
+
 
 
 @Composable
@@ -371,49 +386,53 @@ fun BusAppContent(
                     mapCenter!!.longitude
                 )
                 if (distance > 200) {
-                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                        Button(
-                            onClick = {
-                                coroutineScope.launch {
-                                    try {
-                                        val apiKey = URLDecoder.decode("cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D", "UTF-8")
+                    FloatingActionButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                try {
+                                    val apiKey = URLDecoder.decode("cvmPJ15BcYEn%2FRGNukBqLTRlCXkpITZSc6bWE7tWXdBSgY%2FeN%2BvzxH%2FROLnXu%2BThzVwBc09xoXfTyckHj1IJdg%3D%3D", "UTF-8")
+                                    // 🔥 마커 초기화 (기존 유지)
+                                    busStops = emptyList()
 
-                                        // 🔥 마커 초기화를 위한 리스트 초기화
-                                        busStops = emptyList()
-
-                                        val response = BusApiClient.apiService.getNearbyBusStops(
-                                            apiKey,
-                                            mapCenter!!.latitude,
-                                            mapCenter!!.longitude
-                                        )
-                                        if (response.isSuccessful) {
-                                            busStops = response.body()?.body?.items?.itemList?.take(10) ?: emptyList()
-                                            searchedCenter = mapCenter
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e("API Error", "재검색 실패: ${e.message}")
+                                    val response = BusApiClient.apiService.getNearbyBusStops(
+                                        apiKey,
+                                        mapCenter!!.latitude,
+                                        mapCenter!!.longitude
+                                    )
+                                    if (response.isSuccessful) {
+                                        busStops = response.body()?.body?.items?.itemList?.take(10) ?: emptyList()
+                                        searchedCenter = mapCenter
                                     }
+                                } catch (e: Exception) {
+                                    Log.e("API Error", "재검색 실패: ${e.message}")
                                 }
-                            },
-                            modifier = Modifier.align(Alignment.BottomEnd)
-                        ) {
-                            Text("재검색")
-                        }
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(bottom = 150.dp, end = 16.dp), // FAB 간격 고려
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ) {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "재검색")
                     }
                 }
+
+            }
+            FloatingActionButton(
+                onClick = {
+                    shouldRecenter = true
+                    searchedCenter = LatLng(latitude!!, longitude!!)
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 90.dp, end = 16.dp), // 위치는 BottomNavigationBar 고려해서 조절
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Icon(imageVector = Icons.Default.MyLocation, contentDescription = "현재위치로 이동")
             }
 
-            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                Button(
-                    onClick = {
-                        shouldRecenter = true
-                        searchedCenter = LatLng(latitude!!, longitude!!)
-                    },
-                    modifier = Modifier.align(Alignment.BottomStart)
-                ) {
-                    Text("현재위치")
-                }
-            }
 
             if (busStops.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
