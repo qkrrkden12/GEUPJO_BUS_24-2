@@ -38,4 +38,13 @@ interface BusApiService {
         @Query("numOfRows") numOfRows: Int = 10, // 기본값 10
         @Query("pageNo") pageNo: Int = 1         // 기본값 1
     ): Response<BusStopRouteResponse>
+
+    @GET("/1613000/BusRouteInfoInqireService/getRouteAcctoThrghSttnList")
+    suspend fun getBusRouteInfo(
+        @Query("serviceKey") apiKey: String,
+        @Query("cityCode") cityCode: Int,
+        @Query("routeId") routeId: String,
+        @Query("numOfRows") numOfRows: Int = 99,
+        @Query("pageNo") pageNo: Int = 1
+    ): Response<BusRouteResponse>  // 반환 타입 변경
 }
