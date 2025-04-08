@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
                                 TopAppBar(
                                     title = {
                                         Text(
-                                            text = "진주시 버스 정보",
+                                            text = "GN BUS",
                                             style = MaterialTheme.typography.titleLarge.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimary
