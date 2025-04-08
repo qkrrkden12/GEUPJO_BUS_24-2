@@ -279,6 +279,7 @@ fun BottomNavigationBar(currentScreen: String, onTabSelected: (String) -> Unit) 
 
 
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun BusAppContent(
     modifier: Modifier = Modifier,

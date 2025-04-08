@@ -5,30 +5,17 @@ import android.content.Context
 import android.location.Geocoder
 import android.location.Location
 import android.util.Log
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -41,20 +28,20 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.Polyline
-import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.gms.maps.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.net.URLEncoder
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.ExperimentalComposeUiApi
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,12 +49,15 @@ fun RouteSearchScreen(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     var departure by remember { mutableStateOf(TextFieldValue("")) }
     var destination by remember { mutableStateOf(TextFieldValue("")) }
-    var selectedMode by remember { mutableStateOf("transit") } // default: bus
+    var selectedMode by remember { mutableStateOf("transit") }
+    val modeOptions = listOf("transit" to "대중교통", "driving" to "자동차", "walking" to "도보", "bicycling" to "자전거")
 
-
-    var expanded by remember { mutableStateOf(false) }
     var routeResults by remember { mutableStateOf(listOf<String>()) }
     var travelTime by remember { mutableStateOf("") }
     var polylinePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
@@ -76,12 +66,13 @@ fun RouteSearchScreen(
     val departureMarker = remember { mutableStateOf<Marker?>(null) }
     val destinationMarker = remember { mutableStateOf<Marker?>(null) }
     val currentPolyline = remember { mutableStateOf<Polyline?>(null) }
-
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val recentSearches = remember {
+        mutableStateListOf<Pair<String, String>>().apply {
+            addAll(loadRecentSearches(context))
+        }
+    }
 
     val polylineColor = 0xFF6200EE.toInt()
-
     val mapView = rememberMapViewWithLifecycle(context)
     var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
 
@@ -105,6 +96,34 @@ fun RouteSearchScreen(
         }
     }
 
+    fun performSearch() {
+        if (departure.text.isBlank() || destination.text.isBlank()) {
+            Toast.makeText(context, "출발지와 도착지를 모두 입력하세요", Toast.LENGTH_SHORT).show()
+            return
+        }
+        isSearching = true
+        keyboardController?.hide()
+        coroutineScope.launch {
+            val (results, polyline, duration) = fetchDirections(departure.text, destination.text, selectedMode)
+            routeResults = results
+            travelTime = duration
+            recentSearches.removeAll { it.first == departure.text && it.second == destination.text }
+            recentSearches.add(0, departure.text to destination.text)
+            if (recentSearches.size > 5) recentSearches.removeLast()
+            saveRecentSearches(context, recentSearches)
+            updateMapWithDirections(
+                googleMap = googleMap,
+                polyline = polyline,
+                polylineColor = polylineColor,
+                currentPolyline = currentPolyline,
+                destinationMarker = destinationMarker,
+                departureMarker = departureMarker,
+                currentLocation = currentLocation
+            )
+            isSearching = false
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -117,20 +136,23 @@ fun RouteSearchScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         OutlinedTextField(
             value = departure,
             onValueChange = { departure = it },
             label = { Text("출발지를 입력하세요") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            trailingIcon = {
+                if (departure.text.isNotEmpty()) {
+                    IconButton(onClick = { departure = TextFieldValue("") }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    }
+                }
+            },
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = destination,
@@ -138,53 +160,48 @@ fun RouteSearchScreen(
             label = { Text("도착지를 입력하세요") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    isSearching = true
-                    coroutineScope.launch {
-                        val (results, polyline, duration) = fetchDirections(departure.text, destination.text, selectedMode)
-                        routeResults = results
-                        travelTime = duration
-                        updateMapWithDirections(
-                            googleMap = googleMap,
-                            polyline = polyline,
-                            polylineColor = polylineColor,
-                            currentPolyline = currentPolyline,
-                            destinationMarker = destinationMarker,
-                            departureMarker = departureMarker,
-                            currentLocation = currentLocation
-                        )
-                        isSearching = false
+            trailingIcon = {
+                if (destination.text.isNotEmpty()) {
+                    IconButton(onClick = { destination = TextFieldValue("") }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear")
                     }
                 }
-            )
+            },
+            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { performSearch() })
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Button(onClick = {
+                val temp = departure
+                departure = destination
+                destination = temp
+            }) {
+                Icon(Icons.Default.SwapVert, contentDescription = "출발/도착 스왑")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("스왑")
+            }
+
+            Button(onClick = { performSearch() }) {
+                Text("경로 검색")
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
-            onClick = {
-                isSearching = true
-                coroutineScope.launch {
-                    val (results, polyline, duration) = fetchDirections(departure.text, destination.text, selectedMode)
-                    routeResults = results
-                    travelTime = duration
-                    updateMapWithDirections(
-                        googleMap = googleMap,
-                        polyline = polyline,
-                        polylineColor = polylineColor,
-                        currentPolyline = currentPolyline,
-                        destinationMarker = destinationMarker,
-                        departureMarker = departureMarker,
-                        currentLocation = currentLocation
-                    )
-                    isSearching = false
-                }
-            },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            Text("경로 검색")
+            modeOptions.forEach { (value, label) ->
+                FilterChip(
+                    selected = selectedMode == value,
+                    onClick = { selectedMode = value },
+                    label = { Text(label) }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -197,11 +214,65 @@ fun RouteSearchScreen(
             Text("검색 결과:", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             if (travelTime.isNotEmpty()) Text("총 이동시간: $travelTime", style = MaterialTheme.typography.bodyMedium)
-            routeResults.forEach { RouteSearchResultItem(it); Spacer(modifier = Modifier.height(8.dp)) }
-            AndroidView(factory = { mapView }, modifier = Modifier.fillMaxWidth().height(400.dp)) { it.getMapAsync { gMap -> googleMap = gMap; gMap.clear() } }
+            routeResults.forEach {
+                RouteSearchResultItem(it)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            AndroidView(factory = { mapView }, modifier = Modifier.fillMaxWidth().height(400.dp)) {
+                it.getMapAsync { gMap -> googleMap = gMap; gMap.clear() }
+            }
         } else if (!isSearching) {
             Text("검색 결과가 없습니다.", style = MaterialTheme.typography.bodyMedium)
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (recentSearches.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("최근 검색:", style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = {
+                    recentSearches.clear()
+                    saveRecentSearches(context, emptyList())
+                }) {
+                    Text("모두 지우기")
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            recentSearches.take(5).forEach { (from, to) ->
+                Button(
+                    onClick = {
+                        departure = TextFieldValue(from)
+                        destination = TextFieldValue(to)
+                        performSearch()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Text("$from → $to")
+                }
+            }
+        }
+    }
+}
+
+
+fun saveRecentSearches(context: Context, searches: List<Pair<String, String>>) {
+    val sharedPreferences = context.getSharedPreferences("recent_searches", Context.MODE_PRIVATE)
+    val editor = sharedPreferences.edit()
+    val encoded = searches.joinToString("|") { "${it.first}::${it.second}" }
+    editor.putString("recent_searches", encoded)
+    editor.apply()
+}
+
+fun loadRecentSearches(context: Context): List<Pair<String, String>> {
+    val sharedPreferences = context.getSharedPreferences("recent_searches", Context.MODE_PRIVATE)
+    val encoded = sharedPreferences.getString("recent_searches", null) ?: return emptyList()
+    return encoded.split("|").mapNotNull {
+        val parts = it.split("::")
+        if (parts.size == 2) parts[0] to parts[1] else null
     }
 }
 
@@ -216,10 +287,7 @@ fun updateMapWithDirections(
     currentLocation: Location?
 ) {
     googleMap?.let { map ->
-        // 기존 폴리라인 제거
         currentPolyline.value?.remove()
-
-        // 출발지 마커 추가 또는 갱신
         currentLocation?.let {
             val currentLatLng = LatLng(it.latitude, it.longitude)
             departureMarker.value?.remove()
@@ -229,8 +297,6 @@ fun updateMapWithDirections(
                     .title("출발지")
             )
         }
-
-        // 새 폴리라인 추가
         if (!polyline.isNullOrEmpty()) {
             val points = decodePolyline(polyline)
             currentPolyline.value = map.addPolyline(
@@ -239,21 +305,14 @@ fun updateMapWithDirections(
                     .color(polylineColor)
                     .width(10f)
             )
-
-            // 마지막 지점을 목적지로 설정
             val lastPoint = points.lastOrNull()
             lastPoint?.let {
-                // 기존 마커 제거
                 destinationMarker.value?.remove()
-
-                // 새 마커 추가
                 destinationMarker.value = map.addMarker(
                     MarkerOptions()
                         .position(it)
                         .title("도착지")
                 )
-
-                // 카메라 이동
                 map.moveCamera(CameraUpdateFactory.newLatLngZoom(it, 16f))
             }
         }
@@ -264,11 +323,18 @@ suspend fun fetchDirections(departure: String, destination: String, mode: String
     return withContext(Dispatchers.IO) {
         try {
             val client = OkHttpClient()
+            val encodedOrigin = URLEncoder.encode(departure, "UTF-8")
+            val encodedDestination = URLEncoder.encode(destination, "UTF-8")
             val url = "https://maps.googleapis.com/maps/api/directions/json?" +
-                    "origin=$departure&destination=$destination&mode=$mode&language=ko&key=AIzaSyA-XxR0OPZoPTA9-TxDyqQVqaRt9EOa-Eg"
+                    "origin=$encodedOrigin&destination=$encodedDestination&mode=$mode&language=ko&key=AIzaSyA-XxR0OPZoPTA9-TxDyqQVqaRt9EOa-Eg"
+
+            Log.d("Directions API", "URL: $url")
+
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
             val jsonData = response.body?.string()
+
+            Log.d("Directions API", "Response: $jsonData")
 
             val routeList = mutableListOf<String>()
             var polyline: String? = null
@@ -301,13 +367,23 @@ suspend fun fetchDirections(departure: String, destination: String, mode: String
                             val busNumber = line.optString("short_name", "버스")
                             val departureStop = transitDetails.getJSONObject("departure_stop").getString("name")
                             val arrivalStop = transitDetails.getJSONObject("arrival_stop").getString("name")
+                            val numStops = transitDetails.getInt("num_stops")
+                            val congestionLevel = line.optString("short_name").lastOrNull()?.digitToIntOrNull()?.let {
+                                when {
+                                    it <= 3 -> "혼잡도: 낮음 🟢"
+                                    it in 4..6 -> "혼잡도: 보통 🟡"
+                                    else -> "혼잡도: 높음 🔴"
+                                }
+                            } ?: "혼잡도 정보 없음"
 
                             routeList.add(
                                 "$cleanInstruction\n" +
                                         "- 거리: $distance\n" +
                                         "- 버스: $busNumber\n" +
                                         "- 출발 정류장: $departureStop\n" +
-                                        "- 도착 정류장: $arrivalStop"
+                                        "- 도착 정류장: $arrivalStop\n" +
+                                        "- 정차 정류장 수: $numStops\n" +
+                                        "- $congestionLevel"
                             )
                         } else {
                             routeList.add("$cleanInstruction\n- 거리: $distance\n- 이동 수단: $travelMode")
