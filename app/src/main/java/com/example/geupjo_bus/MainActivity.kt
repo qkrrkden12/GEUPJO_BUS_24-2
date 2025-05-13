@@ -802,97 +802,113 @@ fun getCurrentLocation(
 fun ManbokScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
     var stepCount by remember { mutableStateOf(loadStepCount(context)) }
+    var showDialog by remember { mutableStateOf(false) }
     val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
-    if (stepSensor == null) {
-        Log.d("ManbokScreen", "Step sensor not available.")
-    }
+
     val stepCountListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent?) {
-            if (event != null && event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
-                if (event.values.isNotEmpty()) {
-                    saveStepCount(context, loadStepCount(context) + 1)
-                    stepCount = loadStepCount(context)
-                }
+            if (event != null && event.sensor.type == Sensor.TYPE_STEP_DETECTOR && event.values.isNotEmpty()) {
+                stepCount++
+                saveStepCount(context, stepCount)
             }
         }
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
+
     LaunchedEffect(Unit) {
         if (stepSensor != null) {
-            sensorManager.registerListener(
-                stepCountListener,
-                stepSensor,
-                SensorManager.SENSOR_DELAY_UI
-            )
+            sensorManager.registerListener(stepCountListener, stepSensor, SensorManager.SENSOR_DELAY_UI)
+        } else {
+            Log.d("ManbokScreen", "Step sensor not available.")
         }
-    }
-    LaunchedEffect(Unit) {
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACTIVITY_RECOGNITION
-            ) != PackageManager.PERMISSION_GRANTED) {
+                context, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 context as Activity,
-                arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
-                1
+                arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1
             )
         } else {
-            val stepCountServiceIntent = Intent(context, StepCountService::class.java)
-            ContextCompat.startForegroundService(context, stepCountServiceIntent)
+            val intent = Intent(context, StepCountService::class.java)
+            ContextCompat.startForegroundService(context, intent)
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED) {
+                context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 context as Activity,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                1
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1
             )
         }
     }
-    Box(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("만보기 화면") },
-            modifier = Modifier.align(Alignment.TopCenter)
-        )
-        Column(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("만보기 화면") },
+                actions = {
+                    Button(onClick = onBackClick) {
+                        Text("뒤로 가기")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
-            Text(
-                text = "걸음 수: $stepCount",
-                style = TextStyle(fontSize = 24.sp, color = Color.Black)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "이동 거리: ${round(stepCount * 0.6)} m",
-                style = TextStyle(fontSize = 20.sp, color = Color.Black)
-            )
-            Text(
-                text = "소모 칼로리: ${round(stepCount * 0.03)} kcal",
-                style = TextStyle(fontSize = 20.sp, color = Color.Black)
-            )
-            Button(
-                onClick = {
-                    saveStepCount(context, 0)
-                    stepCount = loadStepCount(context)
-                },
-                modifier = Modifier.padding(top = 16.dp)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("초기화")
+                Text(
+                    text = "걸음 수: $stepCount",
+                    style = MaterialTheme.typography.headlineMedium.copy(color = MaterialTheme.colorScheme.onBackground)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "이동 거리: ${round(stepCount * 0.6)} m",
+                    style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
+                )
+                Text(
+                    text = "소모 칼로리: ${round(stepCount * 0.03)} kcal",
+                    style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { showDialog = true }) {
+                    Text("초기화")
+                }
             }
         }
-        Button(
-            onClick = onBackClick,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 72.dp, end = 16.dp)
-        ) {
-            Text("뒤로 가기")
-        }
     }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    saveStepCount(context, 0)
+                    stepCount = 0
+                    showDialog = false
+                }) {
+                    Text("초기화")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("취소")
+                }
+            },
+            title = { Text("정말 초기화 하시겠습니까?") },
+            text = { Text("기록된 걸음 수가 모두 삭제됩니다.") }
+        )
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             sensorManager.unregisterListener(stepCountListener)
